@@ -75,7 +75,8 @@ The `Tray` module emits the following events:
   * `shiftKey` Boolean
   * `ctrlKey` Boolean
   * `metaKey` Boolean
-* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon
+* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon.
+* `position` [Point](structures/point.md) - The position of the event.
 
 Emitted when the tray icon is clicked.
 
@@ -86,7 +87,7 @@ Emitted when the tray icon is clicked.
   * `shiftKey` Boolean
   * `ctrlKey` Boolean
   * `metaKey` Boolean
-* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon
+* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon.
 
 Emitted when the tray icon is right clicked.
 
@@ -97,7 +98,7 @@ Emitted when the tray icon is right clicked.
   * `shiftKey` Boolean
   * `ctrlKey` Boolean
   * `metaKey` Boolean
-* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon
+* `bounds` [Rectangle](structures/rectangle.md) - The bounds of tray icon.
 
 Emitted when the tray icon is double clicked.
 
@@ -128,7 +129,7 @@ Emitted when dragged files are dropped in the tray icon.
 #### Event: 'drop-text' _macOS_
 
 * `event` Event
-* `text` String - the dropped text string
+* `text` String - the dropped text string.
 
 Emitted when dragged text is dropped in the tray icon.
 
@@ -143,6 +144,39 @@ Emitted when a drag operation exits the tray icon.
 #### Event: 'drag-end' _macOS_
 
 Emitted when a drag operation ends on the tray or ends at another location.
+
+#### Event: 'mouse-enter' _macOS_
+
+* `event` Event
+  * `altKey` Boolean
+  * `shiftKey` Boolean
+  * `ctrlKey` Boolean
+  * `metaKey` Boolean
+* `position` [Point](structures/point.md) - The position of the event.
+
+Emitted when the mouse enters the tray icon.
+
+#### Event: 'mouse-leave' _macOS_
+
+* `event` Event
+  * `altKey` Boolean
+  * `shiftKey` Boolean
+  * `ctrlKey` Boolean
+  * `metaKey` Boolean
+* `position` [Point](structures/point.md) - The position of the event.
+
+Emitted when the mouse exits the tray icon.
+
+#### Event: 'mouse-move' _macOS_
+
+* `event` Event
+  * `altKey` Boolean
+  * `shiftKey` Boolean
+  * `ctrlKey` Boolean
+  * `metaKey` Boolean
+* `position` [Point](structures/point.md) - The position of the event.
+
+Emitted when the mouse moves in the tray icon.
 
 ### Instance Methods
 
@@ -174,7 +208,7 @@ Sets the hover text for this tray icon.
 
 * `title` String
 
-Sets the title displayed aside of the tray icon in the status bar.
+Sets the title displayed aside of the tray icon in the status bar (Support ANSI colors).
 
 #### `tray.setHighlightMode(mode)` _macOS_
 
@@ -210,18 +244,16 @@ win.on('hide', () => {
 #### `tray.displayBalloon(options)` _Windows_
 
 * `options` Object
-  * `icon` ([NativeImage](native-image.md) | String) - (optional)
-  * `title` String - (optional)
-  * `content` String - (optional)
+  * `icon` ([NativeImage](native-image.md) | String) (optional) -
+  * `title` String
+  * `content` String
 
 Displays a tray balloon.
 
 #### `tray.popUpContextMenu([menu, position])` _macOS_ _Windows_
 
 * `menu` Menu (optional)
-* `position` Object (optional) - The pop up position.
-  * `x` Integer
-  * `y` Integer
+* `position` [Point](structures/point.md) (optional) - The pop up position.
 
 Pops up the context menu of the tray icon. When `menu` is passed, the `menu` will
 be shown instead of the tray icon's context menu.

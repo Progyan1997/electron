@@ -25,7 +25,7 @@ The `dialog` module has the following methods:
 
 ### `dialog.showOpenDialog([browserWindow, ]options[, callback])`
 
-* `browserWindow` BrowserWindow (optional)
+* `browserWindow` [BrowserWindow](browser-window.md) (optional)
 * `options` Object
   * `title` String (optional)
   * `defaultPath` String (optional)
@@ -44,18 +44,12 @@ The `dialog` module has the following methods:
       the path but allows non-existent paths to be returned that should be
       created by the application.
     * `noResolveAliases` _macOS_ - Disable the automatic alias (symlink) path
-      resolution.  Selected aliases will now return the alias path instead of
+      resolution. Selected aliases will now return the alias path instead of
       their target path.
-  * `normalizeAccessKeys` Boolean (optional) - Normalize the keyboard access keys
-    across platforms. Default is `false`. Enabling this assumes `&` is used in
-    the button labels for the placement of the keyboard shortcut access key
-    and labels will be converted so they work correctly on each platform, `&`
-    characters are removed on macOS, converted to `_` on Linux, and left
-    untouched on Windows. For example, a button label of `Vie&w` will be
-    converted to `Vie_w` on Linux and `View` on macOS and can be selected
-    via `Alt-W` on Windows and Linux.
-    * `message` String (optional) _macOS_ - Message to display above input
-      boxes.
+    * `treatPackageAsDirectory` _macOS_ - Treat packages, such as `.app` folders,
+      as a directory instead of a file.
+  * `message` String (optional) _macOS_ - Message to display above input
+    boxes.
 * `callback` Function (optional)
   * `filePaths` String[] - An array of file paths chosen by the user
 
@@ -83,7 +77,7 @@ The `extensions` array should contain extensions without wildcards or dots (e.g.
 `'*'` wildcard (no other wildcard is supported).
 
 If a `callback` is passed, the API call will be asynchronous and the result
-will be passed via `callback(filenames)`
+will be passed via `callback(filenames)`.
 
 **Note:** On Windows and Linux an open dialog can not be both a file selector
 and a directory selector, so if you set `properties` to
@@ -92,10 +86,11 @@ shown.
 
 ### `dialog.showSaveDialog([browserWindow, ]options[, callback])`
 
-* `browserWindow` BrowserWindow (optional)
+* `browserWindow` [BrowserWindow](browser-window.md) (optional)
 * `options` Object
   * `title` String (optional)
-  * `defaultPath` String (optional)
+  * `defaultPath` String (optional) - Absolute directory path, absolute file
+    path, or file name to use by default.
   * `buttonLabel` String (optional) - Custom label for the confirmation button, when
     left empty the default label will be used.
   * `filters` [FileFilter[]](structures/file-filter.md) (optional)
@@ -116,15 +111,16 @@ The `filters` specifies an array of file types that can be displayed, see
 `dialog.showOpenDialog` for an example.
 
 If a `callback` is passed, the API call will be asynchronous and the result
-will be passed via `callback(filename)`
+will be passed via `callback(filename)`.
 
 ### `dialog.showMessageBox([browserWindow, ]options[, callback])`
 
-* `browserWindow` BrowserWindow (optional)
+* `browserWindow` [BrowserWindow](browser-window.md) (optional)
 * `options` Object
   * `type` String (optional) - Can be `"none"`, `"info"`, `"error"`, `"question"` or
-  `"warning"`. On Windows, "question" displays the same icon as "info", unless
-  you set an icon using the "icon" option.
+  `"warning"`. On Windows, `"question"` displays the same icon as `"info"`, unless
+  you set an icon using the `"icon"` option. On macOS, both `"warning"` and
+  `"error"` display the same warning icon.
   * `buttons` String[] (optional) - Array of texts for buttons. On Windows, an empty array
     will result in one button labeled "OK".
   * `defaultId` Integer (optional) - Index of the button in the buttons array which will
@@ -147,8 +143,16 @@ will be passed via `callback(filename)`
     others as command links in the dialog. This can make the dialog appear in
     the style of modern Windows apps. If you don't like this behavior, you can
     set `noLink` to `true`.
+  * `normalizeAccessKeys` Boolean (optional) - Normalize the keyboard access keys
+    across platforms. Default is `false`. Enabling this assumes `&` is used in
+    the button labels for the placement of the keyboard shortcut access key
+    and labels will be converted so they work correctly on each platform, `&`
+    characters are removed on macOS, converted to `_` on Linux, and left
+    untouched on Windows. For example, a button label of `Vie&w` will be
+    converted to `Vie_w` on Linux and `View` on macOS and can be selected
+    via `Alt-W` on Windows and Linux.
 * `callback` Function (optional)
-  * `response` Number - The index of the button that was clicked
+  * `response` Number - The index of the button that was clicked.
   * `checkboxChecked` Boolean - The checked state of the checkbox if
     `checkboxLabel` was set. Otherwise `false`.
 
@@ -160,25 +164,45 @@ It returns the index of the clicked button.
 
 The `browserWindow` argument allows the dialog to attach itself to a parent window, making it modal.
 
-If a `callback` is passed, the API call will be asynchronous and the result
-will be passed via `callback(response)`.
+If a `callback` is passed, the dialog will not block the process. The API call
+will be asynchronous and the result will be passed via `callback(response)`.
 
 ### `dialog.showErrorBox(title, content)`
 
-* `title` String - The title to display in the error box
-* `content` String - The text content to display in the error box
+* `title` String - The title to display in the error box.
+* `content` String - The text content to display in the error box.
 
 Displays a modal dialog that shows an error message.
 
 This API can be called safely before the `ready` event the `app` module emits,
-it is usually used to report errors in early stage of startup.  If called
+it is usually used to report errors in early stage of startup. If called
 before the app `ready`event on Linux, the message will be emitted to stderr,
 and no GUI dialog will appear.
+
+### `dialog.showCertificateTrustDialog([browserWindow, ]options, callback)` _macOS_ _Windows_
+
+* `browserWindow` [BrowserWindow](browser-window.md) (optional)
+* `options` Object
+  * `certificate` [Certificate](structures/certificate.md) - The certificate to trust/import.
+  * `message` String - The message to display to the user.
+* `callback` Function
+
+On macOS, this displays a modal dialog that shows a message and certificate
+information, and gives the user the option of trusting/importing the
+certificate. If you provide a `browserWindow` argument the dialog will be
+attached to the parent window, making it modal.
+
+On Windows the options are more limited, due to the Win32 APIs used:
+
+ - The `message` argument is not used, as the OS provides its own confirmation
+   dialog.
+ - The `browserWindow` argument is ignored since it is not possible to make
+   this confirmation dialog modal.
 
 ## Sheets
 
 On macOS, dialogs are presented as sheets attached to a window if you provide
-a `BrowserWindow` reference in the `browserWindow` parameter, or modals if no
+a [`BrowserWindow`](browser-window.md) reference in the `browserWindow` parameter, or modals if no
 window is provided.
 
 You can call `BrowserWindow.getCurrentWindow().setSheetOffset(offset)` to change

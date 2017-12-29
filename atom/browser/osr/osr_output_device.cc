@@ -4,7 +4,9 @@
 
 #include "atom/browser/osr/osr_output_device.h"
 
-#include "third_party/skia/include/core/SkDevice.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkRect.h"
+#include "third_party/skia/src/core/SkDevice.h"
 #include "ui/gfx/skia_util.h"
 
 namespace atom {
@@ -36,8 +38,11 @@ void OffScreenOutputDevice::Resize(
     return;
   }
 
-  if (transparent_)
-    bitmap_->eraseARGB(0, 0, 0, 0);
+  if (transparent_) {
+    bitmap_->eraseColor(SK_ColorTRANSPARENT);
+  } else {
+    bitmap_->eraseColor(SK_ColorWHITE);
+  }
 
   canvas_.reset(new SkCanvas(*bitmap_));
 }
@@ -47,6 +52,17 @@ SkCanvas* OffScreenOutputDevice::BeginPaint(const gfx::Rect& damage_rect) {
   DCHECK(bitmap_.get());
 
   damage_rect_ = damage_rect;
+  SkIRect damage = SkIRect::MakeXYWH(
+    damage_rect_.x(),
+    damage_rect_.y(),
+    damage_rect_.width(),
+    damage_rect_.height());
+
+  if (transparent_) {
+    bitmap_->erase(SK_ColorTRANSPARENT, damage);
+  } else {
+    bitmap_->erase(SK_ColorWHITE, damage);
+  }
 
   return canvas_.get();
 }
@@ -63,23 +79,26 @@ void OffScreenOutputDevice::EndPaint() {
     OnPaint(damage_rect_);
 }
 
-void OffScreenOutputDevice::SetActive(bool active) {
+void OffScreenOutputDevice::SetActive(bool active, bool paint) {
   if (active == active_)
     return;
   active_ = active;
 
-  if (active_)
+  if (!active_ && !pending_damage_rect_.IsEmpty() && paint)
     OnPaint(gfx::Rect(viewport_pixel_size_));
 }
 
 void OffScreenOutputDevice::OnPaint(const gfx::Rect& damage_rect) {
   gfx::Rect rect = damage_rect;
+  if (!pending_damage_rect_.IsEmpty()) {
+    rect.Union(pending_damage_rect_);
+    pending_damage_rect_.SetRect(0, 0, 0, 0);
+  }
 
   rect.Intersect(gfx::Rect(viewport_pixel_size_));
   if (rect.IsEmpty())
     return;
 
-  SkAutoLockPixels bitmap_pixels_lock(*bitmap_);
   callback_.Run(rect, *bitmap_);
 }
 

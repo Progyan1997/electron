@@ -26,7 +26,7 @@ The `session` module has the following methods:
 ### `session.fromPartition(partition[, options])`
 
 * `partition` String
-* `options` Object
+* `options` Object (optional)
   * `cache` Boolean - Whether to enable cache.
 
 Returns `Session` - A session instance from `partition` string. When there is an existing
@@ -102,19 +102,19 @@ Callback is invoked with the session's current cache size.
 
 #### `ses.clearCache(callback)`
 
-* `callback` Function - Called when operation is done
+* `callback` Function - Called when operation is done.
 
 Clears the session’s HTTP cache.
 
 #### `ses.clearStorageData([options, callback])`
 
 * `options` Object (optional)
-  * `origin` String - Should follow `window.location.origin`’s representation
+  * `origin` String (optional) - Should follow `window.location.origin`’s representation
     `scheme://host:port`.
-  * `storages` String[] - The types of storages to clear, can contain:
+  * `storages` String[] (optional) - The types of storages to clear, can contain:
     `appcache`, `cookies`, `filesystem`, `indexdb`, `localstorage`,
-    `shadercache`, `websql`, `serviceworkers`
-  * `quotas` String[] - The types of quotas to clear, can contain:
+    `shadercache`, `websql`, `serviceworkers`.
+  * `quotas` String[] (optional) - The types of quotas to clear, can contain:
     `temporary`, `persistent`, `syncable`.
 * `callback` Function (optional) - Called when operation is done.
 
@@ -140,7 +140,7 @@ option is ignored and `pacScript` configuration is applied.
 
 The `proxyRules` has to follow the rules below:
 
-```
+```sh
 proxyRules = schemeProxies[";"<schemeProxies>]
 schemeProxies = [<urlScheme>"="]<proxyURIList>
 urlScheme = "http" | "https" | "ftp" | "socks"
@@ -160,7 +160,7 @@ For example:
   over to the SOCKS5 proxy `bar.com` if `foopy` is unavailable.
 * `http=foopy,direct://` - Use HTTP proxy `foopy` for http URLs, and use no
   proxy if `foopy` is unavailable.
-* `http=foopy;socks=foopy2` -  Use HTTP proxy `foopy` for http URLs, and use
+* `http=foopy;socks=foopy2` - Use HTTP proxy `foopy` for http URLs, and use
   `socks4://foopy2` for all other URLs.
 
 The `proxyBypassRules` is a comma separated list of rules described below:
@@ -204,14 +204,14 @@ The `proxyBypassRules` is a comma separated list of rules described below:
 
 * `url` URL
 * `callback` Function
-  * `proxy` Object
+  * `proxy` String
 
 Resolves the proxy information for `url`. The `callback` will be called with
 `callback(proxy)` when the request is performed.
 
 #### `ses.setDownloadPath(path)`
 
-* `path` String - The download location
+* `path` String - The download location.
 
 Sets download saving directory. By default, the download directory will be the
 `Downloads` under the respective app folder.
@@ -253,12 +253,13 @@ the original network configuration.
   * `request` Object
     * `hostname` String
     * `certificate` [Certificate](structures/certificate.md)
-    * `error` String - Verification result from chromium.
+    * `verificationResult` String - Verification result from chromium.
+    * `errorCode` Integer - Error code.
   * `callback` Function
     * `verificationResult` Integer - Value can be one of certificate error codes
     from [here](https://code.google.com/p/chromium/codesearch#chromium/src/net/base/net_error_list.h).
     Apart from the certificate error codes, the following special codes can be used.
-      * `0` - Indicates success and disables Certificate Transperancy verification.
+      * `0` - Indicates success and disables Certificate Transparency verification.
       * `-2` - Indicates failure.
       * `-3` - Uses the verification result from chromium.
 
@@ -286,15 +287,18 @@ win.webContents.session.setCertificateVerifyProc((request, callback) => {
 
 #### `ses.setPermissionRequestHandler(handler)`
 
-* `handler` Function
-  * `webContents` Object - [WebContents](web-contents.md) requesting the permission.
+* `handler` Function | null
+  * `webContents` [WebContents](web-contents.md) - WebContents requesting the permission.
   * `permission` String - Enum of 'media', 'geolocation', 'notifications', 'midiSysex',
     'pointerLock', 'fullscreen', 'openExternal'.
   * `callback` Function
-    * `permissionGranted` Boolean - Allow or deny the permission
+    * `permissionGranted` Boolean - Allow or deny the permission.
+  * `details` Object - Some properties are only available on certain permission types.
+    * `externalURL` String - The url of the `openExternal` request.
 
 Sets the handler which can be used to respond to permission requests for the `session`.
 Calling `callback(true)` will allow the permission and `callback(false)` will reject it.
+To clear the handler, call `setPermissionRequestHandler(null)`.
 
 ```javascript
 const {session} = require('electron')
@@ -378,9 +382,21 @@ the initial state will be `interrupted`. The download will start only when the
 #### `ses.clearAuthCache(options[, callback])`
 
 * `options` ([RemovePassword](structures/remove-password.md) | [RemoveClientCertificate](structures/remove-client-certificate.md))
-* `callback` Function (optional) - Called when operation is done
+* `callback` Function (optional) - Called when operation is done.
 
 Clears the session’s HTTP authentication cache.
+
+#### `ses.setPreloads(preloads)`
+
+* `preloads` String[] - An array of absolute path to preload scripts
+
+Adds scripts that will be executed on ALL web contents that are associated with
+this session just before normal `preload` scripts run.
+
+#### `ses.getPreloads()`
+
+Returns `String[]` an array of paths to preload scripts that have been
+registered.
 
 ### Instance Properties
 
@@ -388,15 +404,15 @@ The following properties are available on instances of `Session`:
 
 #### `ses.cookies`
 
-A Cookies object for this session.
+A [Cookies](cookies.md) object for this session.
 
 #### `ses.webRequest`
 
-A WebRequest object for this session.
+A [WebRequest](web-request.md) object for this session.
 
 #### `ses.protocol`
 
-A Protocol object (an instance of [protocol](protocol.md) module) for this session.
+A [Protocol](protocol.md) object for this session.
 
 ```javascript
 const {app, session} = require('electron')

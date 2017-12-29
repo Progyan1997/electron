@@ -11,9 +11,9 @@ Following `gyp` files contain the main rules for building Electron:
 * `electron.gyp` defines how Electron itself is built.
 * `common.gypi` adjusts the build configurations of Node to make it build
   together with Chromium.
-* `vendor/brightray/brightray.gyp` defines how `brightray` is built and
+* `brightray/brightray.gyp` defines how `brightray` is built and
   includes the default configurations for linking with Chromium.
-* `vendor/brightray/brightray.gypi` includes general build configurations about
+* `brightray/brightray.gypi` includes general build configurations about
   building.
 
 ## Component Build
@@ -47,7 +47,7 @@ can switch the download address to it via
 If you only want to build Electron quickly for testing or development, you
 can download just the shared library versions by passing the `--dev` parameter:
 
-```bash
+```sh
 $ ./script/bootstrap.py --dev
 $ ./script/build.py -c D
 ```
@@ -76,20 +76,20 @@ you are not affected.
 
 Test your changes conform to the project coding style using:
 
-```bash
+```sh
 $ npm run lint
 ```
 
 Test functionality using:
 
-```bash
+```sh
 $ npm test
 ```
 
 Whenever you make changes to Electron source code, you'll need to re-run the
 build before the tests:
 
-```bash
+```sh
 $ npm run build && npm test
 ```
 
@@ -117,6 +117,6 @@ details), but they will work with the release build.
 
 To run the tests with the release build use:
 
-```bash
+```sh
 $ npm test -- -R
 ```

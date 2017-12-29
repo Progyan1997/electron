@@ -26,6 +26,27 @@
 
 namespace mate {
 
+namespace {
+
+bool CertFromData(const std::string& data,
+    scoped_refptr<net::X509Certificate>* out) {
+  auto cert_list = net::X509Certificate::CreateCertificateListFromBytes(
+    data.c_str(), data.length(),
+    net::X509Certificate::FORMAT_SINGLE_CERTIFICATE);
+  if (cert_list.empty())
+    return false;
+
+  auto leaf_cert = cert_list.front();
+  if (!leaf_cert)
+    return false;
+
+  *out = leaf_cert;
+
+  return true;
+}
+
+}  // namespace
+
 // static
 v8::Local<v8::Value> Converter<const net::AuthChallengeInfo*>::ToV8(
     v8::Isolate* isolate, const net::AuthChallengeInfo* val) {
@@ -73,6 +94,37 @@ v8::Local<v8::Value> Converter<scoped_refptr<net::X509Certificate>>::ToV8(
   return dict.GetHandle();
 }
 
+bool Converter<scoped_refptr<net::X509Certificate>>::FromV8(
+    v8::Isolate* isolate, v8::Local<v8::Value> val,
+    scoped_refptr<net::X509Certificate>* out) {
+  mate::Dictionary dict;
+  if (!ConvertFromV8(isolate, val, &dict))
+    return false;
+
+  std::string data;
+  dict.Get("data", &data);
+  scoped_refptr<net::X509Certificate> leaf_cert;
+  if (!CertFromData(data, &leaf_cert))
+    return false;
+
+  scoped_refptr<net::X509Certificate> parent;
+  if (dict.Get("issuerCert", &parent)) {
+    auto parents = std::vector<net::X509Certificate::OSCertHandle>(
+                      parent->GetIntermediateCertificates());
+    parents.insert(parents.begin(), parent->os_cert_handle());
+    auto cert = net::X509Certificate::CreateFromHandle(
+      leaf_cert->os_cert_handle(), parents);
+    if (!cert)
+      return false;
+
+    *out = cert;
+  } else {
+    *out = leaf_cert;
+  }
+
+  return true;
+}
+
 // static
 v8::Local<v8::Value> Converter<net::CertPrincipal>::ToV8(
     v8::Isolate* isolate, const net::CertPrincipal& val) {
@@ -113,6 +165,35 @@ v8::Local<v8::Value> Converter<net::HttpResponseHeaders*>::ToV8(
   return ConvertToV8(isolate, response_headers);
 }
 
+bool Converter<net::HttpResponseHeaders*>::FromV8(
+    v8::Isolate* isolate,
+    v8::Local<v8::Value> val,
+    net::HttpResponseHeaders* out) {
+  if (!val->IsObject()) {
+    return false;
+  }
+  auto context = isolate->GetCurrentContext();
+  auto headers = v8::Local<v8::Object>::Cast(val);
+  auto keys = headers->GetOwnPropertyNames();
+  for (uint32_t i = 0; i < keys->Length(); i++) {
+    v8::Local<v8::String> key, value;
+    if (!keys->Get(i)->ToString(context).ToLocal(&key)) {
+      return false;
+    }
+    if (!headers->Get(key)->ToString(context).ToLocal(&value)) {
+      return false;
+    }
+    v8::String::Utf8Value key_utf8(key);
+    v8::String::Utf8Value value_utf8(value);
+    std::string k(*key_utf8, key_utf8.length());
+    std::string v(*value_utf8, value_utf8.length());
+    std::ostringstream tmp;
+    tmp << k << ": " << v;
+    out->AddHeader(tmp.str());
+  }
+  return true;
+}
+
 }  // namespace mate
 
 namespace atom {
@@ -128,6 +209,13 @@ void FillRequestDetails(base::DictionaryValue* details,
   GetUploadData(list.get(), request);
   if (!list->empty())
     details->Set("uploadData", std::move(list));
+  std::unique_ptr<base::DictionaryValue> headers_value(
+      new base::DictionaryValue);
+  for (net::HttpRequestHeaders::Iterator it(request->extra_request_headers());
+       it.GetNext();) {
+    headers_value->SetString(it.name(), it.value());
+  }
+  details->Set("headers", std::move(headers_value));
 }
 
 void GetUploadData(base::ListValue* upload_data_list,
@@ -144,7 +232,7 @@ void GetUploadData(base::ListValue* upload_data_list,
       const net::UploadBytesElementReader* bytes_reader =
           reader->AsBytesReader();
       std::unique_ptr<base::Value> bytes(
-          base::BinaryValue::CreateWithCopiedBuffer(bytes_reader->bytes(),
+          base::Value::CreateWithCopiedBuffer(bytes_reader->bytes(),
                                                     bytes_reader->length()));
       upload_data_dict->Set("bytes", std::move(bytes));
     } else if (reader->AsFileReader()) {

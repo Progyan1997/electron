@@ -40,6 +40,7 @@ class MenuDelegate : public views::MenuDelegate {
   void SelectionChanged(views::MenuItemView* menu) override;
   void WillShowMenu(views::MenuItemView* menu) override;
   void WillHideMenu(views::MenuItemView* menu) override;
+  void OnMenuClosed(views::MenuItemView* menu) override;
   views::MenuItemView* GetSiblingMenu(
       views::MenuItemView* menu,
       const gfx::Point& screen_point,
@@ -52,6 +53,9 @@ class MenuDelegate : public views::MenuDelegate {
   int id_;
   std::unique_ptr<views::MenuDelegate> adapter_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
+
+  // The menu button to switch to.
+  views::MenuButton* button_to_open_ = nullptr;
 
   DISALLOW_COPY_AND_ASSIGN(MenuDelegate);
 };

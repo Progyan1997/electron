@@ -32,7 +32,7 @@ When you invoke methods of a remote object, call a remote function, or create
 a new object with the remote constructor (function), you are actually sending
 synchronous inter-process messages.
 
-In the example above, both `BrowserWindow` and `win` were remote objects and
+In the example above, both [`BrowserWindow`](browser-window.md) and `win` were remote objects and
 `new BrowserWindow` didn't create a `BrowserWindow` object in the renderer
 process. Instead, it created a `BrowserWindow` object in the main process and
 returned the corresponding remote object in the renderer process, namely the
@@ -141,6 +141,36 @@ The `remote` module has the following methods:
 * `module` String
 
 Returns `any` - The object returned by `require(module)` in the main process.
+Modules specified by their relative path will resolve relative to the entrypoint
+of the main process.
+
+e.g.
+
+```sh
+project/
+├── main
+│   ├── foo.js
+│   └── index.js
+├── package.json
+└── renderer
+    └── index.js
+```
+
+```js
+// main process: main/index.js
+const {app} = require('electron')
+app.on('ready', () => { /* ... */ })
+```
+
+```js
+// some relative module: main/foo.js
+module.exports = 'bar'
+```
+
+```js
+// renderer process: renderer/index.js
+const foo = require('electron').remote.require('./foo') // bar
+```
 
 ### `remote.getCurrentWindow()`
 

@@ -37,7 +37,7 @@ The following events are available on instances of `Cookies`:
 #### Event: 'changed'
 
 * `event` Event
-* `cookie` [Cookie](structures/cookie.md) - The cookie that was changed
+* `cookie` [Cookie](structures/cookie.md) - The cookie that was changed.
 * `cause` String - The cause of the change with one of the following values:
   * `explicit` - The cookie was changed directly by a consumer's action.
   * `overwrite` - The cookie was automatically removed due to an insert
@@ -62,18 +62,16 @@ The following methods are available on instances of `Cookies`:
     `url`. Empty implies retrieving cookies of all urls.
   * `name` String (optional) - Filters cookies by name.
   * `domain` String (optional) - Retrieves cookies whose domains match or are
-    subdomains of `domains`
+    subdomains of `domains`.
   * `path` String (optional) - Retrieves cookies whose path matches `path`.
   * `secure` Boolean (optional) - Filters cookies by their Secure property.
   * `session` Boolean (optional) - Filters out session or persistent cookies.
 * `callback` Function
   * `error` Error
-  * `cookies` Cookies[]
+  * `cookies` [Cookie[]](structures/cookie.md) - an array of cookie objects.
 
-Sends a request to get all cookies matching `details`, `callback` will be called
+Sends a request to get all cookies matching `filter`, `callback` will be called
 with `callback(error, cookies)` on complete.
-
-`cookies` is an Array of [`cookie`](structures/cookie.md) objects.
 
 #### `cookies.set(details, callback)`
 
@@ -104,3 +102,9 @@ on complete.
 
 Removes the cookies matching `url` and `name`, `callback` will called with
 `callback()` on complete.
+
+#### `cookies.flushStore(callback)`
+
+* `callback` Function
+
+Writes any unwritten cookies data to disk.

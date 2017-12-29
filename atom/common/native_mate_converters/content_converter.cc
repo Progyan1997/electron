@@ -15,12 +15,12 @@
 #include "atom/common/native_mate_converters/string16_converter.h"
 #include "atom/common/native_mate_converters/ui_base_types_converter.h"
 #include "atom/common/native_mate_converters/value_converter.h"
-#include "content/common/resource_request_body_impl.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/context_menu_params.h"
+#include "content/public/common/resource_request_body.h"
 #include "native_mate/dictionary.h"
 
-using content::ResourceRequestBodyImpl;
+using content::ResourceRequestBody;
 
 namespace {
 
@@ -109,7 +109,7 @@ v8::Local<v8::Value> Converter<ContextMenuParamsWithWebContents>::ToV8(
   dict.Set("mediaType", params.media_type);
   dict.Set("mediaFlags", MediaFlagsToV8(isolate, params.media_flags));
   bool has_image_contents =
-    (params.media_type == blink::WebContextMenuData::MediaTypeImage) &&
+    (params.media_type == blink::WebContextMenuData::kMediaTypeImage) &&
     params.has_image_contents;
   dict.Set("hasImageContents", has_image_contents);
   dict.Set("isEditable", params.is_editable);
@@ -168,11 +168,13 @@ v8::Local<v8::Value> Converter<content::PermissionType>::ToV8(
       break;
   }
 
-  if (val == (content::PermissionType)(PermissionType::POINTER_LOCK))
+  if (val == static_cast<content::PermissionType>(PermissionType::POINTER_LOCK))
     return StringToV8(isolate, "pointerLock");
-  else if (val == (content::PermissionType)(PermissionType::FULLSCREEN))
+  else if (val ==
+           static_cast<content::PermissionType>(PermissionType::FULLSCREEN))
     return StringToV8(isolate, "fullscreen");
-  else if (val == (content::PermissionType)(PermissionType::OPEN_EXTERNAL))
+  else if (val ==
+           static_cast<content::PermissionType>(PermissionType::OPEN_EXTERNAL))
     return StringToV8(isolate, "openExternal");
 
   return StringToV8(isolate, "unknown");
@@ -201,9 +203,9 @@ bool Converter<content::StopFindAction>::FromV8(
 
 // static
 v8::Local<v8::Value>
-Converter<scoped_refptr<ResourceRequestBodyImpl>>::ToV8(
+Converter<scoped_refptr<ResourceRequestBody>>::ToV8(
     v8::Isolate* isolate,
-    const scoped_refptr<ResourceRequestBodyImpl>& val) {
+    const scoped_refptr<ResourceRequestBody>& val) {
   if (!val)
     return v8::Null(isolate);
   std::unique_ptr<base::ListValue> list(new base::ListValue);
@@ -211,13 +213,13 @@ Converter<scoped_refptr<ResourceRequestBodyImpl>>::ToV8(
     std::unique_ptr<base::DictionaryValue> post_data_dict(
         new base::DictionaryValue);
     auto type = element.type();
-    if (type == ResourceRequestBodyImpl::Element::TYPE_BYTES) {
+    if (type == ResourceRequestBody::Element::TYPE_BYTES) {
       std::unique_ptr<base::Value> bytes(
-          base::BinaryValue::CreateWithCopiedBuffer(
+          base::Value::CreateWithCopiedBuffer(
               element.bytes(), static_cast<size_t>(element.length())));
       post_data_dict->SetString("type", "rawData");
       post_data_dict->Set("bytes", std::move(bytes));
-    } else if (type == ResourceRequestBodyImpl::Element::TYPE_FILE) {
+    } else if (type == ResourceRequestBody::Element::TYPE_FILE) {
       post_data_dict->SetString("type", "file");
       post_data_dict->SetStringWithoutPathExpansion(
           "filePath", element.path().AsUTF8Unsafe());
@@ -225,7 +227,7 @@ Converter<scoped_refptr<ResourceRequestBodyImpl>>::ToV8(
       post_data_dict->SetInteger("length", static_cast<int>(element.length()));
       post_data_dict->SetDouble(
           "modificationTime", element.expected_modification_time().ToDoubleT());
-    } else if (type == ResourceRequestBodyImpl::Element::TYPE_FILE_FILESYSTEM) {
+    } else if (type == ResourceRequestBody::Element::TYPE_FILE_FILESYSTEM) {
       post_data_dict->SetString("type", "fileSystem");
       post_data_dict->SetStringWithoutPathExpansion(
           "fileSystemURL", element.filesystem_url().spec());
@@ -233,7 +235,7 @@ Converter<scoped_refptr<ResourceRequestBodyImpl>>::ToV8(
       post_data_dict->SetInteger("length", static_cast<int>(element.length()));
       post_data_dict->SetDouble(
           "modificationTime", element.expected_modification_time().ToDoubleT());
-    } else if (type == ResourceRequestBodyImpl::Element::TYPE_BLOB) {
+    } else if (type == ResourceRequestBody::Element::TYPE_BLOB) {
       post_data_dict->SetString("type", "blob");
       post_data_dict->SetString("blobUUID", element.blob_uuid());
     }
@@ -243,14 +245,14 @@ Converter<scoped_refptr<ResourceRequestBodyImpl>>::ToV8(
 }
 
 // static
-bool Converter<scoped_refptr<ResourceRequestBodyImpl>>::FromV8(
+bool Converter<scoped_refptr<ResourceRequestBody>>::FromV8(
     v8::Isolate* isolate,
     v8::Local<v8::Value> val,
-    scoped_refptr<ResourceRequestBodyImpl>* out) {
+    scoped_refptr<ResourceRequestBody>* out) {
   std::unique_ptr<base::ListValue> list(new base::ListValue);
   if (!ConvertFromV8(isolate, val, list.get()))
     return false;
-  *out = new content::ResourceRequestBodyImpl();
+  *out = new content::ResourceRequestBody();
   for (size_t i = 0; i < list->GetSize(); ++i) {
     base::DictionaryValue* dict = nullptr;
     std::string type;
@@ -258,9 +260,9 @@ bool Converter<scoped_refptr<ResourceRequestBodyImpl>>::FromV8(
       return false;
     dict->GetString("type", &type);
     if (type == "rawData") {
-      base::BinaryValue* bytes = nullptr;
+      base::Value* bytes = nullptr;
       dict->GetBinary("bytes", &bytes);
-      (*out)->AppendBytes(bytes->GetBuffer(), bytes->GetSize());
+      (*out)->AppendBytes(bytes->GetBlob().data(), bytes->GetBlob().size());
     } else if (type == "file") {
       std::string file;
       int offset = 0, length = -1;

@@ -30,6 +30,7 @@ enum FileDialogProperty {
   FILE_DIALOG_SHOW_HIDDEN_FILES  = 1 << 4,
   FILE_DIALOG_PROMPT_TO_CREATE   = 1 << 5,
   FILE_DIALOG_NO_RESOLVE_ALIASES = 1 << 6,
+  FILE_DIALOG_TREAT_PACKAGE_APP_AS_DIRECTORY = 1 << 7,
 };
 
 typedef base::Callback<void(
@@ -48,6 +49,7 @@ struct DialogSettings {
   Filters filters;
   int properties = 0;
   bool shows_tag_field = true;
+  bool force_detached = false;
 };
 
 bool ShowOpenDialog(const DialogSettings& settings,

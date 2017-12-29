@@ -12,10 +12,14 @@
 #include "atom/browser/api/save_page_handler.h"
 #include "atom/browser/api/trackable_object.h"
 #include "atom/browser/common_web_contents_delegate.h"
+#include "atom/browser/ui/autofill_popup.h"
 #include "content/common/cursors/webcursor.h"
+#include "content/public/browser/keyboard_event_processing_result.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/favicon_url.h"
 #include "native_mate/handle.h"
+#include "printing/backend/print_backend.h"
 #include "ui/gfx/image/image.h"
 
 namespace blink {
@@ -27,7 +31,7 @@ class InspectableWebContents;
 }
 
 namespace content {
-class ResourceRequestBodyImpl;
+class ResourceRequestBody;
 }
 
 namespace mate {
@@ -39,6 +43,7 @@ namespace atom {
 
 struct SetSizeParams;
 class AtomBrowserContext;
+class AtomJavaScriptDialogManager;
 class WebContentsZoomController;
 class WebViewGuestDelegate;
 
@@ -50,10 +55,11 @@ class WebContents : public mate::TrackableObject<WebContents>,
  public:
   enum Type {
     BACKGROUND_PAGE,  // A DevTools extension background page.
-    BROWSER_WINDOW,  // Used by BrowserWindow.
-    REMOTE,  // Thin wrap around an existing WebContents.
-    WEB_VIEW,  // Used by <webview>.
-    OFF_SCREEN,  // Used for offscreen rendering
+    BROWSER_WINDOW,   // Used by BrowserWindow.
+    BROWSER_VIEW,     // Used by BrowserView.
+    REMOTE,           // Thin wrap around an existing WebContents.
+    WEB_VIEW,         // Used by <webview>.
+    OFF_SCREEN,       // Used for offscreen rendering
   };
 
   // For node.js callback function type: function(error, buffer)
@@ -73,8 +79,12 @@ class WebContents : public mate::TrackableObject<WebContents>,
   static void BuildPrototype(v8::Isolate* isolate,
                              v8::Local<v8::FunctionTemplate> prototype);
 
+  // Notifies to destroy any guest web contents before destroying self.
+  void DestroyWebContents(bool async);
+
   int64_t GetID() const;
   int GetProcessID() const;
+  base::ProcessId GetOSProcessID() const;
   Type GetType() const;
   bool Equal(const WebContents* web_contents) const;
   void LoadURL(const GURL& url, const mate::Dictionary& options);
@@ -89,6 +99,8 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void GoBack();
   void GoForward();
   void GoToOffset(int offset);
+  const std::string GetWebRTCIPHandlingPolicy() const;
+  void SetWebRTCIPHandlingPolicy(const std::string& webrtc_ip_handling_policy);
   bool IsCrashed() const;
   void SetUserAgent(const std::string& user_agent, mate::Arguments* args);
   std::string GetUserAgent();
@@ -105,12 +117,17 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void DisableDeviceEmulation();
   void InspectElement(int x, int y);
   void InspectServiceWorker();
-  void HasServiceWorker(const base::Callback<void(bool)>&);
+  void HasServiceWorker(
+      const base::Callback<void(bool)>&);
   void UnregisterServiceWorker(const base::Callback<void(bool)>&);
+  void SetIgnoreMenuShortcuts(bool ignore);
   void SetAudioMuted(bool muted);
   bool IsAudioMuted();
   void Print(mate::Arguments* args);
+  std::vector<printing::PrinterBasicInfo> GetPrinterList();
   void SetEmbedder(const WebContents* embedder);
+  void SetDevToolsWebContents(const WebContents* devtools);
+  v8::Local<v8::Value> GetNativeView() const;
 
   // Print current page as PDF.
   void PrintToPDF(const base::DictionaryValue& setting,
@@ -174,6 +191,7 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void SetFrameRate(int frame_rate);
   int GetFrameRate() const;
   void Invalidate();
+  gfx::Size GetSizeForNewRenderView(content::WebContents*) const override;
 
   // Methods for zoom handling.
   void SetZoomLevel(double level);
@@ -192,13 +210,17 @@ class WebContents : public mate::TrackableObject<WebContents>,
       const std::string& frame_name,
       WindowOpenDisposition disposition,
       const std::vector<std::string>& features,
-      const scoped_refptr<content::ResourceRequestBodyImpl>& body);
+      const scoped_refptr<content::ResourceRequestBody>& body);
 
   // Returns the web preferences of current WebContents.
   v8::Local<v8::Value> GetWebPreferences(v8::Isolate* isolate);
 
   // Returns the owner window.
   v8::Local<v8::Value> GetOwnerBrowserWindow();
+
+  // Grants the child process the capability to access URLs with the origin of
+  // the specified URL.
+  void GrantOriginAccess(const GURL& url);
 
   // Properties.
   int32_t ID() const;
@@ -227,12 +249,14 @@ class WebContents : public mate::TrackableObject<WebContents>,
                               const base::string16& message,
                               int32_t line_no,
                               const base::string16& source_id) override;
-  void WebContentsCreated(content::WebContents* source_contents,
-                          int opener_render_process_id,
-                          int opener_render_frame_id,
-                          const std::string& frame_name,
-                          const GURL& target_url,
-                          content::WebContents* new_contents) override;
+  void WebContentsCreated(
+      content::WebContents* source_contents,
+      int opener_render_process_id,
+      int opener_render_frame_id,
+      const std::string& frame_name,
+      const GURL& target_url,
+      content::WebContents* new_contents)
+      override;
   void AddNewContents(content::WebContents* source,
                       content::WebContents* new_contents,
                       WindowOpenDisposition disposition,
@@ -254,9 +278,9 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void HandleKeyboardEvent(
       content::WebContents* source,
       const content::NativeWebKeyboardEvent& event) override;
-  bool PreHandleKeyboardEvent(content::WebContents* source,
-                              const content::NativeWebKeyboardEvent& event,
-                              bool* is_keyboard_shortcut) override;
+  content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      content::WebContents* source,
+      const content::NativeWebKeyboardEvent& event) override;
   void EnterFullscreenModeForTab(content::WebContents* source,
                                  const GURL& origin) override;
   void ExitFullscreenModeForTab(content::WebContents* source) override;
@@ -287,6 +311,8 @@ class WebContents : public mate::TrackableObject<WebContents>,
   std::unique_ptr<content::BluetoothChooser> RunBluetoothChooser(
       content::RenderFrameHost* frame,
       const content::BluetoothChooser::EventHandler& handler) override;
+  content::JavaScriptDialogManager* GetJavaScriptDialogManager(
+      content::WebContents* source) override;
 
   // content::WebContentsObserver:
   void BeforeUnloadFired(const base::TimeTicks& proceed_time) override;
@@ -311,6 +337,8 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
   bool OnMessageReceived(const IPC::Message& message) override;
+  bool OnMessageReceived(const IPC::Message& message,
+                         content::RenderFrameHost* frame_host) override;
   void WebContentsDestroyed() override;
   void NavigationEntryCommitted(
       const content::LoadCommittedDetails& load_details) override;
@@ -332,6 +360,11 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void DevToolsFocused() override;
   void DevToolsOpened() override;
   void DevToolsClosed() override;
+
+  void ShowAutofillPopup(content::RenderFrameHost* frame_host,
+                         const gfx::RectF& bounds,
+                         const std::vector<base::string16>& values,
+                         const std::vector<base::string16>& labels);
 
  private:
   AtomBrowserContext* GetBrowserContext() const;
@@ -360,10 +393,14 @@ class WebContents : public mate::TrackableObject<WebContents>,
   // get the zoom level.
   void OnGetZoomLevel(IPC::Message* reply_msg);
 
+  void InitZoomController(content::WebContents* web_contents,
+                          const mate::Dictionary& options);
+
   v8::Global<v8::Value> session_;
   v8::Global<v8::Value> devtools_web_contents_;
   v8::Global<v8::Value> debugger_;
 
+  std::unique_ptr<AtomJavaScriptDialogManager> dialog_manager_;
   std::unique_ptr<WebViewGuestDelegate> guest_delegate_;
 
   // The host webcontents that may contain this webcontents.

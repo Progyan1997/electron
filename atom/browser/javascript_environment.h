@@ -8,8 +8,14 @@
 #include "base/macros.h"
 #include "gin/public/isolate_holder.h"
 
+namespace node {
+class Environment;
+class NodePlatform;
+}
+
 namespace atom {
 
+// Manage the V8 isolate and context automatically.
 class JavascriptEnvironment {
  public:
   JavascriptEnvironment();
@@ -17,6 +23,7 @@ class JavascriptEnvironment {
   void OnMessageLoopCreated();
   void OnMessageLoopDestroying();
 
+  node::NodePlatform* platform() const { return platform_; }
   v8::Isolate* isolate() const { return isolate_; }
   v8::Local<v8::Context> context() const {
     return v8::Local<v8::Context>::New(isolate_, context_);
@@ -24,6 +31,9 @@ class JavascriptEnvironment {
 
  private:
   bool Initialize();
+
+  // Leaked on exit.
+  node::NodePlatform* platform_;
 
   bool initialized_;
   gin::IsolateHolder isolate_holder_;
@@ -35,6 +45,18 @@ class JavascriptEnvironment {
   v8::Context::Scope context_scope_;
 
   DISALLOW_COPY_AND_ASSIGN(JavascriptEnvironment);
+};
+
+// Manage the Node Environment automatically.
+class NodeEnvironment {
+ public:
+  explicit NodeEnvironment(node::Environment* env);
+  ~NodeEnvironment();
+
+ private:
+  node::Environment* env_;
+
+  DISALLOW_COPY_AND_ASSIGN(NodeEnvironment);
 };
 
 }  // namespace atom

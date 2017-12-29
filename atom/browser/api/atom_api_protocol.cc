@@ -10,6 +10,7 @@
 #include "atom/browser/net/url_request_async_asar_job.h"
 #include "atom/browser/net/url_request_buffer_job.h"
 #include "atom/browser/net/url_request_fetch_job.h"
+#include "atom/browser/net/url_request_stream_job.h"
 #include "atom/browser/net/url_request_string_job.h"
 #include "atom/common/native_mate_converters/callback.h"
 #include "atom/common/native_mate_converters/value_converter.h"
@@ -50,20 +51,25 @@ void RegisterStandardSchemes(const std::vector<std::string>& schemes,
                              mate::Arguments* args) {
   g_standard_schemes = schemes;
 
+  mate::Dictionary opts;
+  bool secure = false;
+  args->GetNext(&opts) && opts.Get("secure", &secure);
+
+  // Dynamically register the schemes.
   auto* policy = content::ChildProcessSecurityPolicy::GetInstance();
   for (const std::string& scheme : schemes) {
     url::AddStandardScheme(scheme.c_str(), url::SCHEME_WITHOUT_PORT);
+    if (secure) {
+      url::AddSecureScheme(scheme.c_str());
+    }
     policy->RegisterWebSafeScheme(scheme);
   }
 
-  // add switches to register as standard
+  // Add the schemes to command line switches, so child processes can also
+  // register them.
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       atom::switches::kStandardSchemes, base::JoinString(schemes, ","));
-
-  mate::Dictionary opts;
-  bool secure = false;
-  if (args->GetNext(&opts) && opts.Get("secure", &secure) && secure) {
-    // add switches to register as secure
+  if (secure) {
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       atom::switches::kSecureSchemes, base::JoinString(schemes, ","));
   }
@@ -203,6 +209,8 @@ void Protocol::BuildPrototype(
                  &Protocol::RegisterProtocol<URLRequestAsyncAsarJob>)
       .SetMethod("registerHttpProtocol",
                  &Protocol::RegisterProtocol<URLRequestFetchJob>)
+      .SetMethod("registerStreamProtocol",
+                 &Protocol::RegisterProtocol<URLRequestStreamJob>)
       .SetMethod("unregisterProtocol", &Protocol::UnregisterProtocol)
       .SetMethod("isProtocolHandled", &Protocol::IsProtocolHandled)
       .SetMethod("interceptStringProtocol",
@@ -213,6 +221,8 @@ void Protocol::BuildPrototype(
                  &Protocol::InterceptProtocol<URLRequestAsyncAsarJob>)
       .SetMethod("interceptHttpProtocol",
                  &Protocol::InterceptProtocol<URLRequestFetchJob>)
+      .SetMethod("interceptStreamProtocol",
+                 &Protocol::InterceptProtocol<URLRequestStreamJob>)
       .SetMethod("uninterceptProtocol", &Protocol::UninterceptProtocol);
 }
 

@@ -19,7 +19,7 @@ an issue:
 * [Glossary of Terms](glossary.md)
 * [Supported Platforms](tutorial/supported-platforms.md)
 * [Security](tutorial/security.md)
-* [Electron Versioning](tutorial/electron-versioning.md)
+* [Versioning](tutorial/electron-versioning.md)
 * [Application Distribution](tutorial/application-distribution.md)
 * [Mac App Store Submission Guide](tutorial/mac-app-store-submission-guide.md)
 * [Windows Store Guide](tutorial/windows-store-guide.md)
@@ -32,6 +32,8 @@ an issue:
 * [Using Widevine CDM Plugin](tutorial/using-widevine-cdm-plugin.md)
 * [Testing on Headless CI Systems (Travis, Jenkins)](tutorial/testing-on-headless-ci.md)
 * [Offscreen Rendering](tutorial/offscreen-rendering.md)
+* [Keyboard Shortcuts](tutorial/keyboard-shortcuts.md)
+* [Updating Applications](tutorial/updates.md)
 
 ## Tutorials
 
@@ -39,6 +41,7 @@ an issue:
 * [Desktop Environment Integration](tutorial/desktop-environment-integration.md)
 * [Online/Offline Event Detection](tutorial/online-offline-events.md)
 * [REPL](tutorial/repl.md)
+* [Native Notifications](tutorial/notifications.md)
 
 ## API References
 
@@ -57,6 +60,7 @@ an issue:
 
 * [app](api/app.md)
 * [autoUpdater](api/auto-updater.md)
+* [BrowserView](api/browser-view.md)
 * [BrowserWindow](api/browser-window.md)
 * [contentTracing](api/content-tracing.md)
 * [dialog](api/dialog.md)
@@ -92,6 +96,7 @@ an issue:
 
 * [Coding Style](development/coding-style.md)
 * [Using clang-format on C++ Code](development/clang-format.md)
+* [Testing](development/testing.md)
 * [Source Code Directory Structure](development/source-code-directory-structure.md)
 * [Technical Differences to NW.js (formerly node-webkit)](development/atom-shell-vs-node-webkit.md)
 * [Build System Overview](development/build-system-overview.md)
@@ -102,3 +107,6 @@ an issue:
 * [Debug Instructions (Windows)](development/debug-instructions-windows.md)
 * [Setting Up Symbol Server in debugger](development/setting-up-symbol-server.md)
 * [Documentation Styleguide](styleguide.md)
+* [Upgrading Chrome](development/upgrading-chrome.md)
+* [Chromium Development](development/chromium-development.md)
+* [V8 Development](development/v8-development.md)

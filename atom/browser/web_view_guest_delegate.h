@@ -47,6 +47,9 @@ class WebViewGuestDelegate : public content::BrowserPluginGuestDelegate,
   // and normal sizes.
   void SetSize(const SetSizeParams& params);
 
+  // Return true if attached.
+  bool IsAttached() const { return attached_; }
+
  protected:
   // content::WebContentsObserver:
   void DidFinishNavigation(
@@ -54,6 +57,7 @@ class WebViewGuestDelegate : public content::BrowserPluginGuestDelegate,
 
   // content::BrowserPluginGuestDelegate:
   void DidAttach(int guest_proxy_routing_id) final;
+  void DidDetach() final;
   content::WebContents* GetOwnerWebContents() const final;
   void GuestSizeChanged(const gfx::Size& new_size) final;
   void SetGuestHost(content::GuestHost* guest_host) final;
@@ -64,6 +68,8 @@ class WebViewGuestDelegate : public content::BrowserPluginGuestDelegate,
   bool CanBeEmbeddedInsideCrossProcessFrames() override;
   content::RenderWidgetHost* GetOwnerRenderWidgetHost() override;
   content::SiteInstance* GetOwnerSiteInstance() override;
+  content::WebContents* CreateNewGuestWindow(
+     const content::WebContents::CreateParams& create_params) override;
 
   // WebContentsZoomController::Observer:
   void OnZoomLevelChanged(content::WebContents* web_contents,
@@ -82,8 +88,10 @@ class WebViewGuestDelegate : public content::BrowserPluginGuestDelegate,
   // Returns the default size of the guestview.
   gfx::Size GetDefaultSize() const;
 
+  void ResetZoomController();
+
   // The WebContents that attaches this guest view.
-  content::WebContents* embedder_web_contents_;
+  content::WebContents* embedder_web_contents_ = nullptr;
 
   // The zoom controller of the embedder that is used
   // to subscribe for zoom changes.
@@ -113,6 +121,9 @@ class WebViewGuestDelegate : public content::BrowserPluginGuestDelegate,
 
   // Whether the guest view is inside a plugin document.
   bool is_full_page_plugin_;
+
+  // Whether attached.
+  bool attached_;
 
   api::WebContents* api_web_contents_;
 

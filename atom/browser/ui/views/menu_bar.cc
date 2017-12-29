@@ -52,8 +52,7 @@ MenuBar::MenuBar(NativeWindow* window)
       menu_model_(NULL),
       window_(window) {
   UpdateMenuBarColor();
-  SetLayoutManager(new views::BoxLayout(
-      views::BoxLayout::kHorizontal, 0, 0, 0));
+  SetLayoutManager(new views::BoxLayout(views::BoxLayout::kHorizontal));
 }
 
 MenuBar::~MenuBar() {
@@ -119,7 +118,7 @@ bool MenuBar::GetMenuButtonFromScreenPoint(const gfx::Point& point,
 
   for (int i = 0; i < child_count(); ++i) {
     views::View* view = child_at(i);
-    if (view->bounds().Contains(location) &&
+    if (view->GetMirroredBounds().Contains(location) &&
         (menu_model_->GetTypeAt(i) == AtomMenuModel::TYPE_SUBMENU)) {
       *menu_model = menu_model_->GetSubmenuModelAt(i);
       *button = static_cast<views::MenuButton*>(view);
@@ -153,8 +152,9 @@ void MenuBar::OnMenuButtonClicked(views::MenuButton* source,
     return;
   }
 
-  MenuDelegate menu_delegate(this);
-  menu_delegate.RunMenu(menu_model_->GetSubmenuModelAt(id), source);
+  // Deleted in MenuDelegate::OnMenuClosed
+  MenuDelegate* menu_delegate = new MenuDelegate(this);
+  menu_delegate->RunMenu(menu_model_->GetSubmenuModelAt(id), source);
 }
 
 void MenuBar::OnNativeThemeChanged(const ui::NativeTheme* theme) {
@@ -168,7 +168,7 @@ void MenuBar::UpdateMenuBarColor() {
   GetMenuBarColor(&enabled_color_, &disabled_color_, &highlight_color_,
                   &hover_color_, &background_color_);
 #endif
-  set_background(views::Background::CreateSolidBackground(background_color_));
+  SetBackground(views::CreateSolidBackground(background_color_));
 }
 
 }  // namespace atom

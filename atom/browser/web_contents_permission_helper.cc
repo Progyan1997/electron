@@ -7,6 +7,7 @@
 #include <string>
 
 #include "atom/browser/atom_permission_manager.h"
+#include "atom/common/native_mate_converters/gurl_converter.h"
 #include "brightray/browser/media/media_stream_devices_controller.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_process_host.h"
@@ -54,20 +55,22 @@ WebContentsPermissionHelper::~WebContentsPermissionHelper() {
 void WebContentsPermissionHelper::RequestPermission(
     content::PermissionType permission,
     const base::Callback<void(bool)>& callback,
-    bool user_gesture) {
+    bool user_gesture,
+    const base::DictionaryValue* details) {
   auto rfh = web_contents_->GetMainFrame();
   auto permission_manager = static_cast<AtomPermissionManager*>(
       web_contents_->GetBrowserContext()->GetPermissionManager());
   auto origin = web_contents_->GetLastCommittedURL();
-  permission_manager->RequestPermission(
-      permission, rfh, origin, false,
+  permission_manager->RequestPermissionWithDetails(
+      permission, rfh, origin, false, details,
       base::Bind(&OnPermissionResponse, callback));
 }
 
 void WebContentsPermissionHelper::RequestFullscreenPermission(
     const base::Callback<void(bool)>& callback) {
-  RequestPermission((content::PermissionType)(PermissionType::FULLSCREEN),
-                    callback);
+  RequestPermission(
+      static_cast<content::PermissionType>(PermissionType::FULLSCREEN),
+      callback);
 }
 
 void WebContentsPermissionHelper::RequestMediaAccessPermission(
@@ -86,17 +89,20 @@ void WebContentsPermissionHelper::RequestWebNotificationPermission(
 
 void WebContentsPermissionHelper::RequestPointerLockPermission(
     bool user_gesture) {
-  RequestPermission((content::PermissionType)(PermissionType::POINTER_LOCK),
-                    base::Bind(&OnPointerLockResponse, web_contents_),
-                    user_gesture);
+  RequestPermission(
+      static_cast<content::PermissionType>(PermissionType::POINTER_LOCK),
+      base::Bind(&OnPointerLockResponse, web_contents_), user_gesture);
 }
 
 void WebContentsPermissionHelper::RequestOpenExternalPermission(
     const base::Callback<void(bool)>& callback,
-    bool user_gesture) {
-  RequestPermission((content::PermissionType)(PermissionType::OPEN_EXTERNAL),
-                    callback,
-                    user_gesture);
+    bool user_gesture,
+    const GURL& url) {
+  base::DictionaryValue details;
+  details.SetString("externalURL", url.spec());
+  RequestPermission(
+      static_cast<content::PermissionType>(PermissionType::OPEN_EXTERNAL),
+      callback, user_gesture, &details);
 }
 
 }  // namespace atom

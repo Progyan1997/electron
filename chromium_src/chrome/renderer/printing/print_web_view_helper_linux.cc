@@ -106,7 +106,7 @@ bool PrintWebViewHelper::PrintPagesNative(blink::WebLocalFrame* frame,
     printed_page_params.page_number = printed_pages[i];
     Send(new PrintHostMsg_DidPrintPage(routing_id(), printed_page_params));
     // Send the rest of the pages with an invalid metafile handle.
-    printed_page_params.metafile_data_handle.fd = -1;
+    printed_page_params.metafile_data_handle.Release();
   }
   return true;
 }
@@ -126,12 +126,12 @@ void PrintWebViewHelper::PrintPageInternal(
                                           &content_area);
   gfx::Rect canvas_area = content_area;
 
-  SkCanvas* canvas = metafile->GetVectorCanvasForNewPage(
-      page_size, canvas_area, scale_factor);
+  cc::PaintCanvas* canvas =
+      metafile->GetVectorCanvasForNewPage(page_size, canvas_area, scale_factor);
   if (!canvas)
     return;
 
-  MetafileSkiaWrapper::SetMetafileOnCanvas(*canvas, metafile);
+  MetafileSkiaWrapper::SetMetafileOnCanvas(canvas, metafile);
 
   RenderPageContent(frame, params.page_number, canvas_area, content_area,
                     scale_factor, canvas);

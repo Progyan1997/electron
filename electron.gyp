@@ -4,10 +4,11 @@
     'product_name%': 'Electron',
     'company_name%': 'GitHub, Inc',
     'company_abbr%': 'github',
-    'version%': '1.6.2',
+    'version%': '1.8.2-beta.2',
     'js2c_input_dir': '<(SHARED_INTERMEDIATE_DIR)/js2c',
   },
   'includes': [
+    'features.gypi',
     'filenames.gypi',
     'vendor/native_mate/native_mate_files.gypi',
   ],
@@ -22,6 +23,11 @@
           '<(source_root)/external_binaries',
         ],
       }],
+      ['enable_osr==1', {
+        'defines': [
+          'ENABLE_OSR',
+        ],
+      }],  # enable_osr==1
     ],
   },
   'targets': [
@@ -81,7 +87,7 @@
               # is marked for no PIE (ASLR).
               'postbuild_name': 'Make More Helpers',
               'action': [
-                'vendor/brightray/tools/mac/make_more_helpers.sh',
+                'tools/mac/make_more_helpers.sh',
                 'Frameworks',
                 '<(product_name)',
               ],
@@ -116,6 +122,19 @@
                 },
               ],
             }],
+            ['mas_build==1', {
+              'dependencies': [
+                '<(project_name)_login_helper',
+              ],
+              'copies': [
+                {
+                  'destination': '<(PRODUCT_DIR)/<(product_name).app/Contents/Library/LoginItems',
+                  'files': [
+                    '<(PRODUCT_DIR)/<(product_name) Login Helper.app',
+                  ],
+                },
+              ],
+            }],
           ],
         }],  # OS!="mac"
         ['OS=="win"', {
@@ -126,7 +145,17 @@
             'VCManifestTool': {
               'EmbedManifest': 'true',
               'AdditionalManifestFiles': 'atom/browser/resources/win/atom.manifest',
-            }
+            },
+            'VCLinkerTool': {
+              # Chrome builds with this minimum environment which makes e.g.
+              # GetSystemMetrics(SM_CXSIZEFRAME) return Windows XP/2003
+              # compatible metrics. See: https://crbug.com/361720
+              #
+              # The following two settings translate to a linker flag
+              # of /SUBSYSTEM:WINDOWS,5.02
+              'MinimumRequiredVersion': '5.02',
+              'SubSystem': '2',
+            },
           },
           'copies': [
             {
@@ -159,7 +188,6 @@
                 '<(libchromiumcontent_dir)/natives_blob.bin',
                 '<(libchromiumcontent_dir)/snapshot_blob.bin',
                 'external_binaries/d3dcompiler_47.dll',
-                'external_binaries/xinput1_3.dll',
               ],
             },
           ],
@@ -210,26 +238,31 @@
       'type': 'static_library',
       'dependencies': [
         'atom_js2c',
-        'vendor/brightray/brightray.gyp:brightray',
+        'vendor/pdf_viewer/pdf_viewer.gyp:pdf_viewer',
+        'brightray/brightray.gyp:brightray',
         'vendor/node/node.gyp:node',
       ],
       'defines': [
         # We need to access internal implementations of Node.
         'NODE_WANT_INTERNALS=1',
         'NODE_SHARED_MODE',
+        'HAVE_OPENSSL=1',
+        'HAVE_INSPECTOR=1',
         # This is defined in skia/skia_common.gypi.
         'SK_SUPPORT_LEGACY_GETTOPDEVICE',
         # Disable warnings for g_settings_list_schemas.
         'GLIB_DISABLE_DEPRECATION_WARNINGS',
         # Defined in Chromium but not exposed in its gyp file.
         'V8_USE_EXTERNAL_STARTUP_DATA',
-        'V8_SHARED',
+
+        # Import V8 symbols from shared library (node.dll / libnode.so)
         'USING_V8_SHARED',
         'USING_V8_PLATFORM_SHARED',
         'USING_V8_BASE_SHARED',
-        # Remove this after enable_plugins becomes a feature flag.
-        'ENABLE_PLUGINS',
-        'USE_PROPRIETARY_CODECS',
+
+        # See Chromium src/third_party/protobuf/BUILD.gn
+        'GOOGLE_PROTOBUF_NO_RTTI',
+        'GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER',
       ],
       'sources': [
         '<@(lib_sources)',
@@ -237,7 +270,6 @@
       'include_dirs': [
         '.',
         'chromium_src',
-        'vendor/brightray',
         'vendor/native_mate',
         # Include atom_natives.h.
         '<(SHARED_INTERMEDIATE_DIR)',
@@ -257,6 +289,7 @@
         '<(libchromiumcontent_src_dir)/third_party/',
         '<(libchromiumcontent_src_dir)/components/cdm',
         '<(libchromiumcontent_src_dir)/third_party/widevine',
+        '<(libchromiumcontent_src_dir)/third_party/protobuf/src',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
@@ -264,7 +297,7 @@
         ],
       },
       'export_dependent_settings': [
-        'vendor/brightray/brightray.gyp:brightray',
+        'brightray/brightray.gyp:brightray',
       ],
       'conditions': [
         ['libchromiumcontent_component', {
@@ -336,7 +369,7 @@
               # Make binary search for libraries under current directory, so we
               # don't have to manually set $LD_LIBRARY_PATH:
               # http://serverfault.com/questions/279068/cant-find-so-in-the-same-directory-as-the-executable
-              '-rpath \$$ORIGIN',
+              '-Wl,-rpath=\$$ORIGIN',
               # Make native module dynamic loading work.
               '-rdynamic',
             ],
@@ -344,7 +377,6 @@
           # Required settings of using breakpad.
           'cflags_cc': [
             '-Wno-empty-body',
-            '-Wno-reserved-user-defined-literal',
           ],
           'include_dirs': [
             'vendor/breakpad/src',
@@ -353,6 +385,12 @@
             'vendor/breakpad/breakpad.gyp:breakpad_client',
           ],
         }],  # OS=="linux"
+        ['OS=="linux" and clang==1', {
+          # Required settings of using breakpad.
+          'cflags_cc': [
+            '-Wno-reserved-user-defined-literal',
+          ],
+        }],  # OS=="linux" and clang==1
       ],
     },  # target <(product_name)_lib
     {
@@ -436,11 +474,29 @@
         # depend on this target to ensure the '<(js2c_input_dir)' is created
         'atom_js2c_copy',
       ],
+      'variables': {
+        'sandbox_args': [
+          './lib/sandboxed_renderer/init.js',
+          '-r',
+          './lib/sandboxed_renderer/api/exports/electron.js:electron',
+          '-r',
+          './lib/sandboxed_renderer/api/exports/fs.js:fs',
+          '-r',
+          './lib/sandboxed_renderer/api/exports/os.js:os',
+          '-r',
+          './lib/sandboxed_renderer/api/exports/path.js:path',
+          '-r',
+          './lib/sandboxed_renderer/api/exports/child_process.js:child_process'
+        ],
+        'isolated_args': [
+          'lib/isolated_renderer/init.js',
+        ]
+      },
       'actions': [
         {
           'action_name': 'atom_browserify_sandbox',
           'inputs': [
-            '<@(browserify_entries)',
+            '<!@(python tools/list-browserify-deps.py <(sandbox_args))'
           ],
           'outputs': [
             '<(js2c_input_dir)/preload_bundle.js',
@@ -451,7 +507,7 @@
             '--silent',
             'browserify',
             '--',
-            'lib/sandboxed_renderer/init.js',
+            '<@(sandbox_args)',
             '-o',
             '<@(_outputs)',
           ],
@@ -459,7 +515,7 @@
         {
           'action_name': 'atom_browserify_isolated_context',
           'inputs': [
-            '<@(isolated_context_browserify_entries)',
+            '<!@(python tools/list-browserify-deps.py <(isolated_args))'
           ],
           'outputs': [
             '<(js2c_input_dir)/isolated_bundle.js',
@@ -470,7 +526,7 @@
             '--silent',
             'browserify',
             '--',
-            'lib/isolated_renderer/init.js',
+            '<@(isolated_args)',
             '-o',
             '<@(_outputs)',
           ],
@@ -532,6 +588,9 @@
               '$(SDKROOT)/System/Library/Frameworks/Carbon.framework',
               '$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
               '$(SDKROOT)/System/Library/Frameworks/Quartz.framework',
+              '$(SDKROOT)/System/Library/Frameworks/Security.framework',
+              '$(SDKROOT)/System/Library/Frameworks/SecurityInterface.framework',
+              '$(SDKROOT)/System/Library/Frameworks/ServiceManagement.framework',
             ],
           },
           'mac_bundle': 1,
@@ -541,6 +600,7 @@
             '<(libchromiumcontent_dir)/icudtl.dat',
             '<(libchromiumcontent_dir)/natives_blob.bin',
             '<(libchromiumcontent_dir)/snapshot_blob.bin',
+            '<(PRODUCT_DIR)/pdf_viewer_resources.pak',
           ],
           'xcode_settings': {
             'ATOM_BUNDLE_ID': 'com.<(company_abbr).<(project_name).framework',
@@ -649,6 +709,32 @@
             ],
           },
         },  # target helper
+        {
+          'target_name': '<(project_name)_login_helper',
+          'product_name': '<(product_name) Login Helper',
+          'type': 'executable',
+          'sources': [
+            '<@(login_helper_sources)',
+          ],
+          'include_dirs': [
+            '.',
+            'vendor',
+            '<(libchromiumcontent_src_dir)',
+          ],
+          'link_settings': {
+            'libraries': [
+              '$(SDKROOT)/System/Library/Frameworks/AppKit.framework',
+            ],
+          },
+          'mac_bundle': 1,
+          'xcode_settings': {
+            'ATOM_BUNDLE_ID': 'com.<(company_abbr).<(project_name).loginhelper',
+            'INFOPLIST_FILE': 'atom/app/resources/mac/loginhelper-Info.plist',
+            'OTHER_LDFLAGS': [
+              '-ObjC',
+            ],
+          },
+        },  # target login_helper
       ],
     }],  # OS!="mac"
   ],

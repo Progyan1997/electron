@@ -30,6 +30,20 @@
 #include "printing/printing_utils.h"
 #include "ui/base/l10n/l10n_util.h"
 
+#include <stddef.h>
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <utility>
+
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
+#include "printing/page_size_margins.h"
+#include "printing/print_job_constants.h"
+#include "printing/print_settings.h"
+#include "printing/units.h"
+
 using content::BrowserThread;
 
 namespace printing {
@@ -41,6 +55,82 @@ void HoldRefCallback(const scoped_refptr<PrintJobWorkerOwner>& owner,
                      const base::Closure& callback) {
   callback.Run();
 }
+
+void SetCustomMarginsToJobSettings(const PageSizeMargins& page_size_margins,
+                                   base::DictionaryValue* settings) {
+  std::unique_ptr<base::DictionaryValue> custom_margins(new base::DictionaryValue());
+  custom_margins->SetDouble(kSettingMarginTop, page_size_margins.margin_top);
+  custom_margins->SetDouble(kSettingMarginBottom, page_size_margins.margin_bottom);
+  custom_margins->SetDouble(kSettingMarginLeft, page_size_margins.margin_left);
+  custom_margins->SetDouble(kSettingMarginRight, page_size_margins.margin_right);
+  settings->Set(kSettingMarginsCustom, std::move(custom_margins));
+}
+
+void PrintSettingsToJobSettings(const PrintSettings& settings,
+                                base::DictionaryValue* job_settings) {
+  // header footer
+  job_settings->SetBoolean(kSettingHeaderFooterEnabled,
+                           settings.display_header_footer());
+  job_settings->SetString(kSettingHeaderFooterTitle, settings.title());
+  job_settings->SetString(kSettingHeaderFooterURL, settings.url());
+
+  // bg
+  job_settings->SetBoolean(kSettingShouldPrintBackgrounds,
+                           settings.should_print_backgrounds());
+  job_settings->SetBoolean(kSettingShouldPrintSelectionOnly,
+                           settings.selection_only());
+
+  // margin
+  auto margin_type = settings.margin_type();
+  job_settings->SetInteger(kSettingMarginsType, settings.margin_type());
+  if (margin_type == CUSTOM_MARGINS) {
+    const auto& margins_in_points = settings.requested_custom_margins_in_points();
+
+    PageSizeMargins page_size_margins;
+
+    page_size_margins.margin_top = margins_in_points.top;
+    page_size_margins.margin_bottom = margins_in_points.bottom;
+    page_size_margins.margin_left = margins_in_points.left;
+    page_size_margins.margin_right = margins_in_points.right;
+    SetCustomMarginsToJobSettings(page_size_margins, job_settings);
+  }
+  job_settings->SetInteger(kSettingPreviewPageCount, 1);
+
+  // range
+
+  if (!settings.ranges().empty()) {
+    auto page_range_array = base::MakeUnique<base::ListValue>();
+    job_settings->Set(kSettingPageRange, std::move(page_range_array));
+    for (size_t i = 0; i < settings.ranges().size(); ++i) {
+      std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
+      dict->SetInteger(kSettingPageRangeFrom, settings.ranges()[i].from + 1);
+      dict->SetInteger(kSettingPageRangeTo, settings.ranges()[i].to + 1);
+      page_range_array->Append(std::move(dict));
+    }
+  }
+
+  job_settings->SetBoolean(kSettingCollate, settings.collate());
+  job_settings->SetInteger(kSettingCopies, 1);
+  job_settings->SetInteger(kSettingColor, settings.color());
+  job_settings->SetInteger(kSettingDuplexMode, settings.duplex_mode());
+  job_settings->SetBoolean(kSettingLandscape, settings.landscape());
+  job_settings->SetString(kSettingDeviceName, settings.device_name());
+  job_settings->SetInteger(kSettingScaleFactor, 100);
+  job_settings->SetBoolean("rasterizePDF", false);
+
+  job_settings->SetInteger("dpi", settings.dpi());
+  job_settings->SetInteger("dpiHorizontal", 72);
+  job_settings->SetInteger("dpiVertical", 72);
+
+  job_settings->SetBoolean(kSettingPrintToPDF, false);
+  job_settings->SetBoolean(kSettingCloudPrintDialog, false);
+  job_settings->SetBoolean(kSettingPrintWithPrivet, false);
+  job_settings->SetBoolean(kSettingPrintWithExtension, false);
+
+  job_settings->SetBoolean(kSettingShowSystemDialog, false);
+  job_settings->SetInteger(kSettingPreviewPageCount, 1);
+}
+
 
 class PrintingContextDelegate : public PrintingContext::Delegate {
  public:
@@ -108,7 +198,7 @@ PrintJobWorker::PrintJobWorker(int render_process_id,
                                PrintJobWorkerOwner* owner)
     : owner_(owner), thread_("Printing_Worker"), weak_factory_(this) {
   // The object is created in the IO thread.
-  DCHECK(owner_->RunsTasksOnCurrentThread());
+  DCHECK(owner_->RunsTasksInCurrentSequence());
 
   printing_context_delegate_ = base::MakeUnique<PrintingContextDelegate>(
       render_process_id, render_frame_id);
@@ -119,7 +209,7 @@ PrintJobWorker::~PrintJobWorker() {
   // The object is normally deleted in the UI thread, but when the user
   // cancels printing or in the case of print preview, the worker is destroyed
   // on the I/O thread.
-  DCHECK(owner_->RunsTasksOnCurrentThread());
+  DCHECK(owner_->RunsTasksInCurrentSequence());
   Stop();
 }
 
@@ -133,8 +223,9 @@ void PrintJobWorker::GetSettings(bool ask_user_for_settings,
                                  bool has_selection,
                                  MarginType margin_type,
                                  bool is_scripted,
-                                 bool is_modifiable) {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+                                 bool is_modifiable,
+                                 const base::string16& device_name) {
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK_EQ(page_number_, PageNumber::npos());
 
   // Recursive task processing is needed for the dialog in case it needs to be
@@ -157,6 +248,13 @@ void PrintJobWorker::GetSettings(bool ask_user_for_settings,
                               document_page_count,
                               has_selection,
                               is_scripted)));
+  } else if (!device_name.empty()) {
+    BrowserThread::PostTask(
+        BrowserThread::UI, FROM_HERE,
+        base::Bind(&HoldRefCallback, make_scoped_refptr(owner_),
+                   base::Bind(&PrintJobWorker::InitWithDeviceName,
+                              base::Unretained(this),
+                              device_name)));
   } else {
     BrowserThread::PostTask(
         BrowserThread::UI, FROM_HERE,
@@ -168,7 +266,7 @@ void PrintJobWorker::GetSettings(bool ask_user_for_settings,
 
 void PrintJobWorker::SetSettings(
     std::unique_ptr<base::DictionaryValue> new_settings) {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
   BrowserThread::PostTask(
       BrowserThread::UI,
@@ -225,8 +323,16 @@ void PrintJobWorker::UseDefaultSettings() {
   GetSettingsDone(result);
 }
 
+void PrintJobWorker::InitWithDeviceName(const base::string16& device_name) {
+  const auto& settings = printing_context_->settings();
+  std::unique_ptr<base::DictionaryValue> dic(new base::DictionaryValue);
+  PrintSettingsToJobSettings(settings, dic.get());
+  dic->SetString(kSettingDeviceName, device_name);
+  UpdatePrintSettings(std::move(dic));
+}
+
 void PrintJobWorker::StartPrinting(PrintedDocument* new_document) {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK_EQ(page_number_, PageNumber::npos());
   DCHECK_EQ(document_.get(), new_document);
   DCHECK(document_.get());
@@ -255,7 +361,7 @@ void PrintJobWorker::StartPrinting(PrintedDocument* new_document) {
 }
 
 void PrintJobWorker::OnDocumentChanged(PrintedDocument* new_document) {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK_EQ(page_number_, PageNumber::npos());
 
   if (page_number_ != PageNumber::npos())
@@ -269,7 +375,7 @@ void PrintJobWorker::OnNewPage() {
     return;
 
   // message_loop() could return NULL when the print job is cancelled.
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
   if (page_number_ == PageNumber::npos()) {
     // Find first page to print.
@@ -340,7 +446,7 @@ bool PrintJobWorker::Start() {
 }
 
 void PrintJobWorker::OnDocumentDone() {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK_EQ(page_number_, PageNumber::npos());
   DCHECK(document_.get());
 
@@ -359,7 +465,7 @@ void PrintJobWorker::OnDocumentDone() {
 }
 
 void PrintJobWorker::SpoolPage(PrintedPage* page) {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DCHECK_NE(page_number_, PageNumber::npos());
 
   // Signal everyone that the page is about to be printed.
@@ -397,7 +503,7 @@ void PrintJobWorker::SpoolPage(PrintedPage* page) {
 }
 
 void PrintJobWorker::OnFailure() {
-  DCHECK(task_runner_->RunsTasksOnCurrentThread());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
   // We may loose our last reference by broadcasting the FAILED event.
   scoped_refptr<PrintJobWorkerOwner> handle(owner_);

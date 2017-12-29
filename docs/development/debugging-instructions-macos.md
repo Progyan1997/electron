@@ -18,15 +18,15 @@ to enable step-through debugging with breakpoints inside Electron's source code.
   tail calls, and other compiler optimizations.
 
 * **Xcode**: In addition to Xcode, also install the Xcode command line tools.
-  They include LLDB, the default debugger in Xcode on Mac OS X. It supports 
-  debugging C, Objective-C and C++ on the desktop and iOS devices and simulator. 
+  They include LLDB, the default debugger in Xcode on Mac OS X. It supports
+  debugging C, Objective-C and C++ on the desktop and iOS devices and simulator.
 
 ## Attaching to and Debugging Electron
 
 To start a debugging session, open up Terminal and start `lldb`, passing a debug
 build of Electron as a parameter.
 
-```bash
+```sh
 $ lldb ./out/D/Electron.app
 (lldb) target create "./out/D/Electron.app"
 Current executable set to './out/D/Electron.app' (x86_64).
@@ -40,27 +40,27 @@ that isn't behaving correctly - so you'd like to break on that command's C++
 counterpart inside the Electron source.
 
 Relevant code files can be found in `./atom/` as well as in Brightray, found in
-`./vendor/brightray/browser` and `./vendor/brightray/common`. If you're hardcore,
+`./brightray/browser` and `./brightray/common`. If you're hardcore,
 you can also debug Chromium directly, which is obviously found in `chromium_src`.
 
 Let's assume that you want to debug `app.setName()`, which is defined in `browser.cc`
 as `Browser::SetName()`. Set the breakpoint using the `breakpoint` command, specifying
 file and line to break on:
 
-```bash
+```sh
 (lldb) breakpoint set --file browser.cc --line 117
 Breakpoint 1: where = Electron Framework`atom::Browser::SetName(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&) + 20 at browser.cc:118, address = 0x000000000015fdb4
 ```
 
 Then, start Electron:
 
-```bash
+```sh
 (lldb) run
 ```
 
 The app will immediately be paused, since Electron sets the app's name on launch:
 
-```bash
+```sh
 (lldb) run
 Process 25244 launched: '/Users/fr/Code/electron/out/D/Electron.app/Contents/MacOS/Electron' (x86_64)
 Process 25244 stopped
@@ -77,9 +77,9 @@ Process 25244 stopped
 ```
 
 To show the arguments and local variables for the current frame, run `frame variable` (or `fr v`),
-which will show you that the app is currently setting the name to "Electron". 
+which will show you that the app is currently setting the name to "Electron".
 
-```bash
+```sh
 (lldb) frame variable
 (atom::Browser *) this = 0x0000000108b14f20
 (const string &) name = "Electron": {
@@ -88,10 +88,10 @@ which will show you that the app is currently setting the name to "Electron".
 ```
 
 To do a source level single step in the currently selected thread, execute `step` (or `s`).
-This would take you into into `name_override_.empty()`. To proceed and do a step over,
+This would take you into `name_override_.empty()`. To proceed and do a step over,
 run `next` (or `n`).
 
-```bash
+```sh
 (lldb) step
 Process 25244 stopped
 * thread #1: tid = 0x839a4c, 0x0000000100162dcc Electron Framework`atom::Browser::SetName(this=0x0000000108b14f20, name="Electron") + 44 at browser.cc:119, queue = 'com.apple.main-thread', stop reason = step in

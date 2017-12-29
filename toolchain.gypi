@@ -5,6 +5,9 @@
     # Set this to true when building with Clang.
     'clang%': 1,
 
+    # Path to mips64el toolchain.
+    'make_mips64_dir%': 'vendor/gcc-4.8.3-d197-n64-loongson/usr',
+
     'variables': {
       # The minimum macOS SDK version to use.
       'mac_sdk_min%': '10.10',
@@ -30,8 +33,8 @@
     'use_lto_o2%': 0,
 
     'conditions': [
-      # Do not use Clang on Windows.
-      ['OS=="win"', {
+      # Do not use Clang on Windows or when building for mips64el.
+      ['OS=="win" or target_arch=="mips64el"', {
         'clang%': 0,
       }],  # OS=="win"
 
@@ -50,13 +53,19 @@
             ['target_arch=="arm"', {
               # sysroot needs to be an absolute path otherwise it generates
               # incorrect results when passed to pkg-config
-              'sysroot%': '<(source_root)/vendor/debian_wheezy_arm-sysroot',
+              'sysroot%': '<(source_root)/vendor/debian_jessie_arm-sysroot',
+            }],
+            ['target_arch=="arm64"', {
+              'sysroot%': '<(source_root)/vendor/debian_jessie_arm64-sysroot',
             }],
             ['target_arch=="ia32"', {
-              'sysroot%': '<(source_root)/vendor/debian_wheezy_i386-sysroot',
+              'sysroot%': '<(source_root)/vendor/debian_jessie_i386-sysroot',
             }],
             ['target_arch=="x64"', {
-              'sysroot%': '<(source_root)/vendor/debian_wheezy_amd64-sysroot',
+              'sysroot%': '<(source_root)/vendor/debian_jessie_amd64-sysroot',
+            }],
+            ['target_arch=="mips64el"', {
+              'sysroot%': '<(source_root)/vendor/debian_jessie_mips64-sysroot',
             }],
           ],
         },
@@ -127,6 +136,20 @@
       },
     }],  # clang==1
 
+    ['target_arch=="mips64el"', {
+      'make_global_settings': [
+        ['CC', '<(make_mips64_dir)/bin/mips64el-redhat-linux-gcc'],
+        ['CXX', '<(make_mips64_dir)/bin/mips64el-redhat-linux-g++'],
+        ['CC.host', '$(CC)'],
+        ['CXX.host', '$(CXX)'],
+      ],
+      'target_defaults': {
+        'cflags_cc': [
+          '-std=c++11',
+        ],
+      },
+    }],
+
     # Specify the SDKROOT.
     ['OS=="mac"', {
       'target_defaults': {
@@ -137,7 +160,7 @@
     }],
 
     # Setup sysroot environment.
-    ['OS=="linux" and target_arch in ["arm", "ia32", "x64"]', {
+    ['OS=="linux" and target_arch in ["arm", "ia32", "x64", "arm64", "mips64el"]', {
       'target_defaults': {
         'target_conditions': [
           ['_toolset=="target"', {
@@ -253,6 +276,23 @@
                       '-mthumb',
                     ],
                   }],
+                ],
+              }],
+            ],
+          }],  # target_arch=="arm64" and _toolset=="target"
+          ['target_arch=="arm64" and _toolset=="target"', {
+            'conditions': [
+              ['clang==0', {
+                'cflags_cc': [
+                  '-Wno-abi',
+                ],
+              }],
+              ['clang==1 and arm_arch!=""', {
+                'cflags': [
+                  '-target  aarch64-linux-gnu',
+                ],
+                'ldflags': [
+                  '-target  aarch64-linux-gnu',
                 ],
               }],
             ],
